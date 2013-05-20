@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="utf-8"?>
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  </head>
+  <body>
+    <h1>バックエンド動作確認用簡易フォーム(山田開発サーバ用)</h1>
+    <pre>
+    微妙にREST風に問い合わせします
+
+    - 情報取得はGET、登録/更新はPOST、削除はDELETEじゃなくPOST
+    - http://ams.vnctst.tir.jp/st/***/ に、GETもしくはPOSTでアクセスします。
+    - エラーは全て以下の形式で返ります。エラー出なさそうなAPIでも
+      バックエンド内で内部エラー起こしてエラー出す可能性あり
+      =&gt; {"status":"error","error":"\u672a\u5b9f\u88c5\u3067\u3059"}
+    - 大半のjson返り値に"tid"というのが含まれてます。
+      これはストレージに保存されたデータが更新されて変化してないかどうかを
+      調べる為のもので、特に気にしなくてokです。
+    </pre>
+    <form action="http://ams.vnctst.tir.jp/st/petlist/" method="get" target="_blank" style="border:1px black solid">
+      カードのリストを取得
+      <br />
+      GPS緯度(y)
+      <input type="text" name="y" value="34.854971" />
+      <br />
+      GPS経度(x)
+      <input type="text" name="x" value="135.423452" />
+      <br />
+      <input type="submit" value="GET" />
+      <pre>
+      GET http://ams.vnctst.tir.jp/st/petlist/?x=135.423452&amp;y=34.854971
+      =&gt; {"status":"ok","petlist":[{...}, {...}, ...]}
+
+      - petlist内の各要素は、下の「カードの詳細情報を取得」で取得できる結果と同じです。
+      - petlistは今のところ、以下の条件で選択されます。
+        - ブリーダー郵便番号の座標が半径10km以内にあるカード
+        - 距離が近い順に並んでいる
+        - 最大20件
+      </pre>
+    </form>
+    <form action="http://ams.vnctst.tir.jp/st/petinfo/" method="get" target="_blank" style="border:1px black solid">
+      カードの詳細情報を取得
+      <br />
+      カードid(id)
+      <input type="text" name="id" value="" />
+      <br />
+      <input type="submit" value="GET" />
+      <pre>
+      GET http://ams.vnctst.tir.jp/st/petinfo/?id=123
+      =&gt; {"status":"ok",
+          "id":"123", // カードid(↑で指定しているものと同じ)
+          "cat":"犬", // 種別(文字列)
+          "img_url":"/path/to/123.jpg", // もしくはnull
+          "img_url2":"/path/to/123_2.jpg", // もしくはnull
+          "img_url3":"/path/to/123_3.jpg" // もしくはnull
+          "age":"2ヶ月ぐらい", // 年齢(文字列)
+          "address":"○○県○○市", // 場所(文字列、ブリーダー情報から引く)
+          "name":"ワンくん(仮)", // ペットの名前(nullの場合あり)
+          "comment":"男の子、ちいさいです", // 特徴、コメント
+          "breeder_name":"山田", // ブリーダーの名前(ブリーダー情報から引く)
+          "x":"135.012345", // 経度(小数の文字列、ブリーダー情報から引く)
+          "y":"34.012345", // 緯度(小数の文字列、ブリーダー情報から引く)
+          "tel_twilio":"05011112222" // ブリーダーにつながるtwilio番号
+          }
+      </pre>
+    </form>
+    <form action="http://ams.vnctst.tir.jp/st/breeder/" method="post" target="_blank" style="border:1px black solid">
+      ブリーダーさん情報の登録/変更
+      <br />
+      名前(name)
+      <input type="text" name="name" value="" />
+      <br />
+      電話番号(tel)
+      <input type="text" name="tel" value="" />
+      <br />
+      郵便番号(postal)
+      <input type="text" name="postal" value="" />
+      <br />
+      <input type="submit" value="POST" />
+      <pre>
+      POST http://ams.vnctst.tir.jp/st/breeder/
+      =&gt; {"status":"ok","bid":"2082352c-f807-4e9d-8ea1-4ee4092b18f8"}
+
+      - "name" はブリーダーさん名前
+      - "tel" はブリーダーさんの実電話番号(NOT twilio電話番号)
+      - "postal" はブリーダーさんの郵便番号、ここから住所や座標を取る
+      - 返り値の "bid" は、各ブリーダーに割り当てられるid。
+        OAuth/OpenIDによるログインを実装した時に利用する。
+      - ブリーダー登録情報削除APIは、このプロトタイプでは省略。
+      </pre>
+    </form>
+    <form action="http://ams.vnctst.tir.jp/st/breeder/" method="get" target="_blank" style="border:1px black solid">
+      自分自身のブリーダー登録情報を取得
+      <br />
+      <input type="submit" value="GET" />
+      <pre>
+      GET http://ams.vnctst.tir.jp/st/breeder/?
+      =&gt; {"status":"ok",
+          "name":"山田淳雄",
+          "tel":"09012345678",
+          "postal":"1234567",
+          "address":"○○県○○市",
+          "bid":"2082352c-f807-4e9d-8ea1-4ee4092b18f8",
+          "tel_twilio":"05011112222"
+          }
+
+      - セッション内のbidから情報を取得します。
+      - ブリーダー未登録の場合は全部nullになります。
+      - "name", "tel", "postal" は登録時の情報そのまま
+      - "address" は、郵便番号から取得した住所文字列
+      - このAPIはブリーダー情報を後で変更する際の初期値として使う想定
+      - "tel_twilio" は、このブリーダーに割り当てられたtwilio番号、
+        ここにかけるとtelの番号に転送される
+      </pre>
+    </form>
+    <form action="http://ams.vnctst.tir.jp/st/petinfo/" method="post" target="_blank" style="border:1px black solid" enctype="multipart/form-data">
+      カード情報の登録/変更
+      <br />
+      カードid(id)
+      <input type="text" name="id" value="" />「登録」動作させる時は空のままにする事
+      <br />
+      種別(cat)
+      <input type="text" name="cat" value="" />
+      <br />
+      年齢(age)
+      <input type="text" name="age" value="" />
+      <br />
+      名前(name)
+      <input type="text" name="name" value="" />
+      <br />
+      特徴(comment)
+      <input type="text" name="comment" value="" />
+      <br />
+      画像アップロード(img)
+      <input type="file" name="img" />
+      <br />
+      画像二枚目アップロード(img2)
+      <input type="file" name="img2" />
+      <br />
+      画像三枚目アップロード(img3)
+      <input type="file" name="img3" />
+      <br />
+      <input type="submit" value="POST (multipart/form-data)" />
+      <pre>
+      POST http://ams.vnctst.tir.jp/st/petinfo/
+      =&gt; {"status":"ok",
+          "id":"123",
+          "img_url":"/path/to/123.jpg", // もしくはnull
+          "img_url2":"/path/to/123_2.jpg", // もしくはnull
+          "img_url3":"/path/to/123_3.jpg" // もしくはnull
+          }
+
+      - 事前にブリーダー登録を済ませ、
+        セッション情報内にbidを保持している必要があります。
+      - 画像アップロード時は、
+        enctype="multipart/form-data" で送信します。
+        画像なしの時は "multipart/form-data" でなくても構いません。
+
+      - カード情報更新の場合は "id" にカードidを指定します。
+        新規登録の場合は "id" は無指定もしくは空文字列にします。
+      - "cat" に、種別(「犬」「猫」「ハムスター」など)を文字列で指定
+      - "age" に、年齢(「2ヶ月ぐらい」など)を文字列で指定
+      - "name" に、ペットの名前を文字列で指定。省略可能
+      - "comment" に、ペットの特徴、その他の情報を文字列で指定
+      - "img" に、アップロードする画像を指定。省略可能
+      - "img2" に、アップロードする画像その二を指定。省略可能
+      - "img3" に、アップロードする画像その三を指定。省略可能
+      - ("img_url_force" に、画像1のみURLを直に指定可能。デバッグ用)
+
+      - 返り値 "id" はカードidです。新規登録後に使う想定です。
+      - 返り値 "img_url" "img_url2" "img_url3" には、アップロードした画像が
+        345x345にリサイズおよびトリミングされた上で
+        サーバ上に設置された画像のURLが返ります(そのまま表示可能です)。
+        このURLは自サーバの / から始まるpath文字列です。
+        アップロードしていない場合は、以前にアップロードした画像のURLのままの
+        値が返ります。以前にアップロードした事がないならnullが返ります。
+        見ての通り、画像は三つまでです。増やす事はできますが…。
+        (適当なインターフェースですいません。)
+
+      - ※一度アップロードした画像は、今のところ削除できません。
+        id指定と画像アップロードによってカード情報を更新する事で、
+        別の画像で上書きする事はできます(手抜きですいません)。
+        またカード自体を削除する事でも画像は消えます。
+      </pre>
+    </form>
+    <form action="http://ams.vnctst.tir.jp/st/petinfo/" method="post" target="_blank" style="border:1px black solid">
+      カード情報の削除
+      <br />
+      カードid(id)
+      <input type="text" name="id" value="" />
+      <br />
+      (delete=1)
+      <input type="text" name="delete" value="1" />変更しないでね
+      <br />
+      <br />
+      <br />
+      <input type="submit" value="POST" />
+      <pre>
+      POST http://ams.vnctst.tir.jp/st/petinfo/
+      =&gt; {"status":"ok"}
+
+      - 渡せるパラメータは delete=1 と id のみです。
+      - 事前にブリーダー登録を済ませ、
+        セッション情報内にbidを保持している必要があります。
+      </pre>
+    </form>
+    <form action="http://ams.vnctst.tir.jp/st/petlist/" method="get" target="_blank" style="border:1px black solid">
+      自分がブリーダーとして登録した全カードのリストを取得
+      <br />
+      (b=1固定)
+      <input type="text" name="b" value="1" />変更しないでね
+      <br />
+      <input type="submit" value="GET" />
+      <pre>
+      GET http://ams.vnctst.tir.jp/st/petlist/?b=1
+      =&gt; {"status":"ok","idlist":[{...}, {...}, ...]}
+
+      - idlistは今のところ、以下の条件になります。
+        - 最近に登録/更新した順に並んでいる
+        - 最大件数制限とかは無し
+        - ブリーダー未登録/未ログイン状態の場合は空リストになる
+
+      このAPIは、ブリーダーモードで
+      既存のカードを編集したり削除したりする際の
+      カード選択の為の一覧取得を想定しています。
+      </pre>
+    </form>
+    <form action="http://ams.vnctst.tir.jp/st/userinfo/" method="post" target="_blank" style="border:1px black solid">
+      ユーザーが、自分自身の電話番号を登録/変更する
+      <br />
+      電話番号(tel)
+      <input type="text" name="tel" value="" />
+      <br />
+      <input type="submit" value="POST" />
+      <pre>
+      POST http://ams.vnctst.tir.jp/st/userinfo/
+      =&gt; {"status":"ok","uid":"2082352c-f807-4e9d-8ea1-4ee4092b18f8"}
+
+      - セッションに、ユーザーさん自身の電話番号を保存/変更します。
+        ブリーダーさんへの電話ボタンを押したタイミングにて、
+        まだユーザーが未登録の場合、登録画面を出します。
+      - この電話番号は、twilioバックエンド側に送信されます。
+      - 返り値の"uid"は、このユーザーに割り当てられたidが返ります。
+        今のところは利用用途はないです。
+      - 将来的には、他の値も保存させる可能性があります。
+      </pre>
+    </form>
+    <form action="http://ams.vnctst.tir.jp/st/userinfo/" method="get" target="_blank" style="border:1px black solid">
+      ユーザーが、自分が登録した自分自身の電話番号を取得する
+      <br />
+      <input type="submit" value="GET" />
+      <pre>
+      GET http://ams.vnctst.tir.jp/st/userinfo/?
+      =&gt; {"status":"ok",
+          "uid":"2082352c-f807-4e9d-8ea1-4ee4092b18f8",
+          "tel":"09011112222",
+          }
+
+      - セッションより、ユーザーが登録した電話番号を取り出します。
+        まだ未登録なら"uid"と"tel"にはnullが返ります。
+        これはユーザーが登録済か否かを調べるのが主な目的です。
+        (電話をかけるボタンを押した際に、まだ未登録なら
+         電話番号登録ダイアログを出し、登録済ならそのまま
+         次へと遷移させます。)
+      </pre>
+    </form>
+  </body>
+</html>
+<!-- vim:set sw=2 ts=2 sts=2 et: -->

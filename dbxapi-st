@@ -1,0 +1,2 @@
+#!/bin/sh
+DROPBOX_CONF=`cat ~/dbx-st-file` dropbox-api "$@"
